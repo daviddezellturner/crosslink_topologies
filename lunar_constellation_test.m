@@ -1,9 +1,11 @@
 % Author: David Dezell Turner
 % 
 % Using STK, this code generates a constellation around a specified central
-% body, then creates a CSV file listing the time intervals during which
-% each satellite or ground station is visible from each satellite. It also
-% saves an ephemeris file for each satellite in the current folder.
+% body, then creates a CSV file of the distance between each pair of
+% satellites at each timestep -- but only during time intervals where the
+% pair of satellites have a direct line of sight between them.
+%
+% User defines constellation in "Define Constellation Parameters" section.
 
 % Helpful resource: https://help.agi.com/stkdevkit/11.4.0/Content/stkObjects/ObjModMatlabCodeSamples.htm#111
 
@@ -24,6 +26,8 @@ scenario.SetTimePeriod('24 Feb 2012 12:00:00.000','25 Feb 2012 12:00:00.000');
 scenario.StartTime = '24 Feb 2012 12:00:00.000';
 scenario.StopTime = '25 Feb 2012 12:00:00.000';
 
+root.UnitPreferences.Item('DateFormat').SetCurrentUnit('EpSec');
+
 root.ExecuteCommand('Animate * Reset');
 % How do I set the window to a Non-Earth-fixed view?
 
@@ -32,48 +36,46 @@ satContainer = containers.Map('KeyType','char','ValueType','any');
 
 %% Define Constellation Parameters
 
-% User defines constellation HERE. Select a central body and call
+% USER DEFINES CONSTELLATION HERE. Select a central body and call
 % createConstellation() to define a constellation around it.
 
 global satCentralBody;
 satCentralBody = 'Moon'; % central body of satellite orbits
 
-satsPerPlane = 7;
-numPlanes = 1;
-satName = "LunarSoP";
+satsPerPlane = 2;
+numPlanes = 3;
+satName = "LunarSat";
 periAlt = 1000; % periapsis altitude [km]
 apoAlt = 1000; % apoapsis altitude [km]
 inc = 45; % [deg]
 argPeri = 12; % argument of perigee [deg]
+ascNode = 15; % RAAN
+WalkerType = 'Delta'
 
-ascNode = 15; % RAAN - specify only if all satellites are coplanar (e.g. String of Pearls)
-
-% createConstellation(satName,numPlanes,satsPerPlane,periAlt*3/2,apoAlt*3/2,inc,argPeri,ascNode)
-createConstellation(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode)
-createConstellation(satName,numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode)
-
-% root.ExecuteCommand('Walker */Satellite/LunarSat Type Delta NumPlanes 7 NumSatsPerPlane 2 InterPlanePhaseIncrement 1 ColorByPlane Yes')
+createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
+% createWalker(satName,numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode)
 
 %% Create Ground Stations
 % One ground station for each DSN complex. Each is an approximation
 % based on p. 15 of https://deepspace.jpl.nasa.gov/dsndocs/810-005/301/301K.pdf
-disp("Creating ground stations...")
 
-dsn_gold = scenario.Children.NewOnCentralBody('eFacility','DSN_Goldstone','Earth');
-dsn_gold.Position.AssignGeodetic(35,243,1000); % lat, lon, alt [m]
-% dsn_gold.Graphics.Color = 3145645; % Yellow-Green
-
-dsn_mad = scenario.Children.NewOnCentralBody('eFacility','DSN_Madrid','Earth');
-dsn_mad.Position.AssignGeodetic(40,355,800); % lat, lon, alt [m]
-% dsn_mad.Graphics.Color = 3145645; % Yellow-Green
-
-dsn_can = scenario.Children.NewOnCentralBody('eFacility','DSN_Canberra','Earth');
-dsn_can.Position.AssignGeodetic(-35,148,700); % lat, lon, alt [m]
-% dsn_can.Graphics.Color = 3145645; % Yellow-Green
-
-groundNameList = ["DSN_Goldstone","DSN_Madrid","DSN_Canberra"];
-groundStations = {dsn_gold,dsn_mad,dsn_can};
-groundContainer = containers.Map(groundNameList,groundStations);
+% disp("Creating ground stations...")
+% 
+% dsn_gold = scenario.Children.NewOnCentralBody('eFacility','DSN_Goldstone','Earth');
+% dsn_gold.Position.AssignGeodetic(35,243,1000); % lat, lon, alt [m]
+% % dsn_gold.Graphics.Color = 3145645; % Yellow-Green
+% 
+% dsn_mad = scenario.Children.NewOnCentralBody('eFacility','DSN_Madrid','Earth');
+% dsn_mad.Position.AssignGeodetic(40,355,800); % lat, lon, alt [m]
+% % dsn_mad.Graphics.Color = 3145645; % Yellow-Green
+% 
+% dsn_can = scenario.Children.NewOnCentralBody('eFacility','DSN_Canberra','Earth');
+% dsn_can.Position.AssignGeodetic(-35,148,700); % lat, lon, alt [m]
+% % dsn_can.Graphics.Color = 3145645; % Yellow-Green
+% 
+% groundNameList = ["DSN_Goldstone","DSN_Madrid","DSN_Canberra"];
+% groundStations = {dsn_gold,dsn_mad,dsn_can};
+% groundContainer = containers.Map(groundNameList,groundStations);
 
 %% Access Analysis
 
@@ -92,59 +94,71 @@ for a = 1:length(allSats)
             access = sat1.GetAccessToObject(sat2);
             access.ComputeAccess;
             
-            accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
-            accessStartTimes = accessDP.DataSets.GetDataSetByName('Start Time').GetValues;
-            accessStopTimes = accessDP.DataSets.GetDataSetByName('Stop Time').GetValues;
-
             access_name = strcat(allSats{a},"to",allSats{b});
-            disp(strcat("Computing ",access_name,"..."))
 
-            xlswrite(filename,{access_name},sheet,'A1');
-            headers = {"Start Time","Stop Time"};
-            xlswrite(filename,headers,sheet,'A2');
-            xlswrite(filename,accessStartTimes,sheet,'A3');
-            xlswrite(filename,accessStartTimes,sheet,'B3');
-            sheet = sheet + 1;
-        catch
-            warning(strcat("Error: ",allSats{a}," & ",allSats{b}));
-        end
-    end
-end
-
-% Between sats and ground stations
-for a = 1:length(allSats)
-    for b = 1:length(groundNameList)
-        try
-            sat1 = satContainer(allSats{a});
-            gs = groundContainer(groundNameList(b));
-
-            access = sat1.GetAccessToObject(gs);
-            access.ComputeAccess;
+            timeStep = 60;
+            
             accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
-            accessStartTimes = accessDP.DataSets.GetDataSetByName('Start Time').GetValues;
-            accessStopTimes = accessDP.DataSets.GetDataSetByName('Stop Time').GetValues;
-
-            access_name = strcat(allSats{a},"to",groundNameList(b));
+            accessStartTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Start Time').GetValues);
+            accessStopTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Stop Time').GetValues);
             disp(strcat("Computing ",access_name,"..."))
 
+            accessAER = access.DataProviders.Item('AER Data').Group.Item('BodyFixed').Exec(scenario.StartTime, scenario.StopTime, timeStep);
+            AERTimes = cell2mat(accessAER.Interval.Item(cast(0, 'int32')).DataSets.GetDataSetByName('Time').GetValues);
+            range = cell2mat(accessAER.Interval.Item(cast(0, 'int32')).DataSets.GetDataSetByName('Range').GetValues);
+            for i = 1:1:accessAER.Interval.Count-1
+                AERTimes = [AERTimes; cell2mat(accessAER.Interval.Item(cast(i, 'int32')).DataSets.GetDataSetByName('Time').GetValues)];
+                range = [range; cell2mat(accessAER.Interval.Item(cast(i, 'int32')).DataSets.GetDataSetByName('Range').GetValues)];
+            end
+            AERTimes = timeStep*round(AERTimes./timeStep); % round time steps so they're all the same
+
+            warning('off','MATLAB:xlswrite:AddSheet');
             xlswrite(filename,{access_name},sheet,'A1');
-            headers = {"Start Time","Stop Time"};
+            headers = {"Time since start [s]","Distance between objects [km]"};
             xlswrite(filename,headers,sheet,'A2');
-            xlswrite(filename,accperi_altessStartTimes,sheet,'A3');
-            xlswrite(filename,accessStartTimes,sheet,'B3');
+            xlswrite(filename,AERTimes,sheet,'A3');
+            xlswrite(filename,range,sheet,'B3');
             sheet = sheet + 1;
         catch
-            warning(strcat("Error: ",allSats{a}," & ",groundNameList(b)));
+            warning(strcat("No line of sight between ",allSats{a}," & ",allSats{b}));
         end
     end
 end
+
+% % Between sats and ground stations
+% for a = 1:length(allSats)
+%     for b = 1:length(groundNameList)
+%         try
+%             sat1 = satContainer(allSats{a});
+%             gs = groundContainer(groundNameList(b));
+% 
+%             access = sat1.GetAccessToObject(gs);
+%             access.ComputeAccess;
+%             accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
+%             accessStartTimes = accessDP.DataSets.GetDataSetByName('Start Time').GetValues;
+%             accessStopTimes = accessDP.DataSets.GetDataSetByName('Stop Time').GetValues;
+% 
+%             access_name = strcat(allSats{a},"to",groundNameList(b));
+%             disp(strcat("Computing ",access_name,"..."))
+% 
+%             xlswrite(filename,{access_name},sheet,'A1');
+%             headers = {"Start Time","Stop Time"};
+%             xlswrite(filename,headers,sheet,'A2');
+%             xlswrite(filename,accperi_altessStartTimes,sheet,'A3');
+%             xlswrite(filename,accessStartTimes,sheet,'B3');
+%             sheet = sheet + 1;
+%         catch
+%             warning(strcat("No line of sight between ",allSats{a}," & ",groundNameList(b)));
+%         end
+%     end
+% end
 
 %% Functions
-function createConstellation(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode)
-% CREATECONSTELLATION Define a constellation in STK and add the satellites
+function createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
+% CREATEWALKER Define a Walker constellation in STK and add the satellites
 % to satContainer.
 % 
-% CREATECONSTELLATION(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode):
+% CREATEWALKER(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,type):
 %   satName = name of constellation [str]
 %   numPlanes = number of planes [int]
 %   satsPerPlane = number of satellites in each plane [int]
@@ -153,21 +167,25 @@ function createConstellation(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,a
 %   inc = inclination, deg [float]
 %   argPeri = argument of periapsis, deg [float]
 %   ascNode = right ascension of the ascending node, deg [float]
+%   WalkerType = constellation type, "Delta" or "Star" [str]
 
     global satCentralBody;
     global satContainer;
     global root;
     global scenario;
 
+    count = 1;
+    nameCheck = satName;
+
+    while any(contains(keys(satContainer),nameCheck)) % checks whether constellation name is taken
+        count = count+1;
+        nameCheck = strcat(satName,num2str(count));
+    end
+    satName = nameCheck;
+
     for a = 1:numPlanes
-        for b = 1:satsPerPlane
+        for b = 1:satsPerPlane            
             satCurrentName = strcat(satName,"_",num2str(a),num2str(b));
-            
-            count = 1;
-            while isKey(satContainer,satCurrentName) % checks whether name is taken
-                count = count+1;
-                satCurrentName = strcat(satName,num2str(count),"_",num2str(a),num2str(b));
-            end
             disp(strcat("Creating ",satCurrentName,"..."))
             satNameList(a,b) = satCurrentName;
     
@@ -184,10 +202,16 @@ function createConstellation(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,a
             keplerian.Orientation.Inclination = inc;
             keplerian.Orientation.ArgOfPerigee = argPeri;
     
-            if a == 1
+            if numPlanes == 1
                 keplerian.Orientation.AscNode.Value = ascNode;
             else
-                keplerian.Orientation.AscNode.Value = 360*a/numPlanes;
+                if WalkerType == "Delta"
+                    keplerian.Orientation.AscNode.Value = mod(ascNode + 360*a/numPlanes, 360);
+                elseif WalkerType == "Star"
+                    keplerian.Orientation.AscNode.Value = mod(ascNode + 180*a/numPlanes, 360);
+                else
+                    error('WalkerType should be string with value "Delta" or "Star"')
+                end
             end
             keplerian.Location.Value = 360*b/satsPerPlane;
     
@@ -198,10 +222,11 @@ function createConstellation(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,a
     
             satContainer(satCurrentName) = satellite;
     
-            saveFolder = pwd;
-            ephemFile = strcat(pwd,"\",satCurrentName,".e");
-            ephemText = 'ExportDataFile */Satellite/%s Ephemeris "%s" Type STK CoordSys J2000 CentralBody %s InterpBoundaries Include';
-            root.ExecuteCommand(sprintf(ephemText,satCurrentName,ephemFile,satCentralBody));
+%             % Generate ephemeris files for each satellite
+%             saveFolder = pwd;
+%             ephemFile = strcat(pwd,"\",satCurrentName,".e");
+%             ephemText = 'ExportDataFile */Satellite/%s Ephemeris "%s" Type STK CoordSys J2000 CentralBody %s InterpBoundaries Include';
+%             root.ExecuteCommand(sprintf(ephemText,satCurrentName,ephemFile,satCentralBody));
         end
     end
 end
