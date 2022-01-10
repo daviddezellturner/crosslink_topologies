@@ -1,13 +1,11 @@
-% Author: David Dezell Turner
-% 
 % Using STK, this code generates a constellation around a specified central
 % body, then creates a CSV file of the distance between each pair of
 % satellites at each timestep -- but only during time intervals where the
 % pair of satellites have a direct line of sight between them.
 %
 % User defines constellation in "Define Constellation Parameters" section.
-
-% Helpful resource: https://help.agi.com/stkdevkit/11.4.0/Content/stkObjects/ObjModMatlabCodeSamples.htm#111
+% 
+% Author: David Dezell Turner
 
 clear all
 close all
@@ -42,18 +40,18 @@ satContainer = containers.Map('KeyType','char','ValueType','any');
 global satCentralBody;
 satCentralBody = 'Moon'; % central body of satellite orbits
 
-satsPerPlane = 2;
-numPlanes = 3;
-satName = "LunarSat";
+satsPerPlane = 3;
+numPlanes = 1;
+satName = "RingTest";
 periAlt = 1000; % periapsis altitude [km]
 apoAlt = 1000; % apoapsis altitude [km]
 inc = 45; % [deg]
 argPeri = 12; % argument of perigee [deg]
 ascNode = 15; % RAAN
-WalkerType = 'Delta'
+WalkerType = 'Delta';
 
 createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
-% createWalker(satName,numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode)
+createWalker(satName,numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode+30,WalkerType)
 
 %% Create Ground Stations
 % One ground station for each DSN complex. Each is an approximation
@@ -85,24 +83,25 @@ sheet = 1;
 
 % Between satellites
 allSats = keys(satContainer);
+masterTimes = []; % Array of all timesteps for which there is access data
 for a = 1:length(allSats)
     for b = a+1:length(allSats)
         try
             sat1 = satContainer(allSats{a});
             sat2 = satContainer(allSats{b});
-
+    
             access = sat1.GetAccessToObject(sat2);
             access.ComputeAccess;
             
-            access_name = strcat(allSats{a},"to",allSats{b});
-
+            accessName = strcat(allSats{a},"-to-",allSats{b});
+    
             timeStep = 60;
             
             accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
             accessStartTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Start Time').GetValues);
             accessStopTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Stop Time').GetValues);
-            disp(strcat("Computing ",access_name,"..."))
-
+            disp(strcat("Computing ",accessName,"..."))
+    
             accessAER = access.DataProviders.Item('AER Data').Group.Item('BodyFixed').Exec(scenario.StartTime, scenario.StopTime, timeStep);
             AERTimes = cell2mat(accessAER.Interval.Item(cast(0, 'int32')).DataSets.GetDataSetByName('Time').GetValues);
             range = cell2mat(accessAER.Interval.Item(cast(0, 'int32')).DataSets.GetDataSetByName('Range').GetValues);
@@ -112,18 +111,28 @@ for a = 1:length(allSats)
             end
             AERTimes = timeStep*round(AERTimes./timeStep); % round time steps so they're all the same
 
-            warning('off','MATLAB:xlswrite:AddSheet');
-            xlswrite(filename,{access_name},sheet,'A1');
-            headers = {"Time since start [s]","Distance between objects [km]"};
-            xlswrite(filename,headers,sheet,'A2');
-            xlswrite(filename,AERTimes,sheet,'A3');
-            xlswrite(filename,range,sheet,'B3');
-            sheet = sheet + 1;
+            masterTimes = unique([masterTimes;AERTimes]);
+    
+    %             warning('off','MATLAB:xlswrite:AddSheet');
+    %             xlswrite(filename,{access_name},sheet,'A1');
+            headers = ["Time since start [s]","Distance between objects [km]"];
+    %             xlswrite(filename,headers,sheet,'A2');
+    %             xlswrite(filename,AERTimes,sheet,'A3');
+    %             xlswrite(filename,range,sheet,'B3');
+            writematrix(headers,filename,'Sheet',accessName,'Range','A1:B1');
+            writematrix(AERTimes,filename,'Sheet',accessName,'Range','A2');
+            writematrix(range,filename,'Sheet',accessName,'Range','B2');
+%             sheet = sheet + 1;
         catch
             warning(strcat("No line of sight between ",allSats{a}," & ",allSats{b}));
         end
     end
 end
+writematrix(["Master Timestep List [s]"],filename,'Sheet','Master')
+writematrix(masterTimes,filename,'Sheet','Master','Range','A2');
+writematrix(["Master Satellite List"],filename,'Sheet','Master','Range','B1')
+masterSatList = reshape(allSats,[length(allSats),1]);
+writecell(masterSatList,filename,'Sheet','Master','Range','B2');
 
 % % Between sats and ground stations
 % for a = 1:length(allSats)
@@ -174,20 +183,10 @@ function createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,
     global root;
     global scenario;
 
-    count = 1;
-    nameCheck = satName;
-
-    while any(contains(keys(satContainer),nameCheck)) % checks whether constellation name is taken
-        count = count+1;
-        nameCheck = strcat(satName,num2str(count));
-    end
-    satName = nameCheck;
-
     for a = 1:numPlanes
         for b = 1:satsPerPlane            
-            satCurrentName = strcat(satName,"_",num2str(a),num2str(b));
-            disp(strcat("Creating ",satCurrentName,"..."))
-            satNameList(a,b) = satCurrentName;
+            satCurrentName = num2str(length(satContainer) + 1);
+            disp(strcat("Creating Satellite ",satCurrentName,"..."))
     
             satellite = scenario.Children.NewOnCentralBody('eSatellite',satCurrentName,satCentralBody);
     
