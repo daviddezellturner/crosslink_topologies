@@ -22,7 +22,7 @@ global scenario
 
 start = '24 Feb 2022 12:00:00.000';
 stop = '25 Feb 2022 12:00:00.000';
-satName = "GPS";
+satName = "GPSWalkerApprox";
 timeStep = 1800; %43200; % [s]
 
 scenario = root.Children.New('eScenario','Lunar_Constellation_MATLAB_test');
@@ -44,15 +44,15 @@ satContainer = containers.Map('KeyType','char','ValueType','any');
 % createConstellation() to define a constellation around it.
 
 global satCentralBody;
-satCentralBody = 'Moon'; % central body of satellite orbits
+satCentralBody = 'Earth'; % central body of satellite orbits
 
-satsPerPlane = 3;
-numPlanes = 1;
-periAlt = 1000; % periapsis altitude [km]
-apoAlt = 1000; % apoapsis altitude [km]
-inc = 45; % [deg]
-argPeri = 12; % argument of perigee [deg]
-ascNode = 15; % RAAN
+satsPerPlane = 4;
+numPlanes = 6;
+periAlt = 20200; % periapsis altitude [km]
+apoAlt = 20200; % apoapsis altitude [km]
+inc = 55; % [deg]
+argPeri = 30.442; % argument of perigee [deg]
+ascNode = 14.28; % RAAN
 WalkerType = 'Delta';
 
 MMS = ["40482","40483","40484","40485"]; % Magnetospheric Multiscale
@@ -181,8 +181,13 @@ function satFromDB(SSCNumList)
 
     for i = 1:length(SSCNumList)
         satCurrentName = num2str(length(satContainer) + 1);
-        root.ExecuteCommand(strcat("ImportFromDB * Satellite AGIServer Propagate On TimePeriod UseScenarioInterval SSCNumber ",SSCNumList(i), " Rename ", satCurrentName));
-        satContainer(satCurrentName) = scenario.Children.Item(int32(i-1));
+        disp(satCurrentName)
+        try
+            root.ExecuteCommand(strcat("ImportFromDB * Satellite AGIServer Propagate On TimePeriod UseScenarioInterval SSCNumber ",SSCNumList(i), " Rename ", satCurrentName));
+            satContainer(satCurrentName) = scenario.Children.Item(int32(i-1));
+        catch
+            warning(strcat(SSCNumList(i)," not imported."))
+        end
     end
 end
 

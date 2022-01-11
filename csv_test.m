@@ -8,20 +8,24 @@
 clear all
 close all
 
-% load("MMSGraphList");
-% graphList = MMSGraphList;
-graphList = dataToGraph("ATrainWithCTrainAccessData.xlsx")
+load("ATrainCTrainGraphList");
+graphList = ATrainCTrainGraphList;
 keyList = keys(graphList);
 
+% graphList = dataToGraph("GPSWalkerApproxAccessData.xlsx")
+% keyList = keys(graphList);
+
 % Plots graphs and converts to GIF
+delay = 0.1
 h = figure;
 axis tight manual
-filename = 'ATrainWithCTrainAnimated.gif';
+filename = 'ATrainCTrainAnimated.gif';
 
 for i = 1:length(graphList)
     ind = keyList{i};
     currentGraph = graph(graphList(ind));
     plot(currentGraph,"EdgeLabel",currentGraph.Edges.Weight)
+%     plot(currentGraph)
     title(strcat("Time since epoch: ",num2str(ind)," s"))
     drawnow
 
@@ -30,9 +34,9 @@ for i = 1:length(graphList)
     [imind,cm] = rgb2ind(im,256);
 
     if i == 1
-        imwrite(imind,cm,filename,'gif', 'Loopcount',inf,'DelayTime',0.1); 
+        imwrite(imind,cm,filename,'gif', 'Loopcount',inf,'DelayTime',delay); 
     else 
-        imwrite(imind,cm,filename,'gif','WriteMode','append','DelayTime',0.1); 
+        imwrite(imind,cm,filename,'gif','WriteMode','append','DelayTime',delay); 
     end 
 
 end
