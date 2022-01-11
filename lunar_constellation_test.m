@@ -19,10 +19,16 @@ global root
 root = app.Personality2;
 
 global scenario
+
+start = '24 Feb 2022 12:00:00.000';
+stop = '25 Feb 2022 12:00:00.000';
+satName = "GPS";
+timeStep = 1800; %43200; % [s]
+
 scenario = root.Children.New('eScenario','Lunar_Constellation_MATLAB_test');
-scenario.SetTimePeriod('24 Feb 2012 12:00:00.000','25 Feb 2012 12:00:00.000');
-scenario.StartTime = '24 Feb 2012 12:00:00.000';
-scenario.StopTime = '25 Feb 2012 12:00:00.000';
+scenario.SetTimePeriod(start,stop);
+scenario.StartTime = start;
+scenario.StopTime = stop;
 
 root.UnitPreferences.Item('DateFormat').SetCurrentUnit('EpSec');
 
@@ -42,7 +48,6 @@ satCentralBody = 'Moon'; % central body of satellite orbits
 
 satsPerPlane = 3;
 numPlanes = 1;
-satName = "RingTest";
 periAlt = 1000; % periapsis altitude [km]
 apoAlt = 1000; % apoapsis altitude [km]
 inc = 45; % [deg]
@@ -50,8 +55,14 @@ argPeri = 12; % argument of perigee [deg]
 ascNode = 15; % RAAN
 WalkerType = 'Delta';
 
+MMS = ["40482","40483","40484","40485"]; % Magnetospheric Multiscale
+ATrain = ["27424","28376","38337","40059"]; % Earth Observing System (EOS) A-Train
+CTrain = ["29108","29107"];
+GPS = ["39533","39741","40105","40294","40534","40730","41019","41328","43873","44506","45854","46826","48859","24876","27704","28129","32711","35752","26360","29486","28874","32260","27663","32384","29601","28190","28474","36585","37753","38833","39166"]
+
+% satFromDB(GPS)
 createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
-createWalker(satName,numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode+30,WalkerType)
+% createWalker(satName,numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode+30,WalkerType)
 
 %% Create Ground Stations
 % One ground station for each DSN complex. Each is an approximation
@@ -94,8 +105,6 @@ for a = 1:length(allSats)
             access.ComputeAccess;
             
             accessName = strcat(allSats{a},"-to-",allSats{b});
-    
-            timeStep = 60;
             
             accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
             accessStartTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Start Time').GetValues);
@@ -163,6 +172,20 @@ writecell(masterSatList,filename,'Sheet','Master','Range','B2');
 % end
 
 %% Functions
+
+function satFromDB(SSCNumList)
+    global satCentralBody;
+    global satContainer;
+    global root;
+    global scenario;
+
+    for i = 1:length(SSCNumList)
+        satCurrentName = num2str(length(satContainer) + 1);
+        root.ExecuteCommand(strcat("ImportFromDB * Satellite AGIServer Propagate On TimePeriod UseScenarioInterval SSCNumber ",SSCNumList(i), " Rename ", satCurrentName));
+        satContainer(satCurrentName) = scenario.Children.Item(int32(i-1));
+    end
+end
+
 function createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
 % CREATEWALKER Define a Walker constellation in STK and add the satellites
 % to satContainer.

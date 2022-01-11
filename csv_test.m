@@ -8,13 +8,15 @@
 clear all
 close all
 
-graphList = dataToGraph("RingTestAccessData.xlsx",150)
-keyList = keys(graphList)
+% load("MMSGraphList");
+% graphList = MMSGraphList;
+graphList = dataToGraph("ATrainWithCTrainAccessData.xlsx")
+keyList = keys(graphList);
 
 % Plots graphs and converts to GIF
 h = figure;
 axis tight manual
-filename = 'testAnimated.gif';
+filename = 'ATrainWithCTrainAnimated.gif';
 
 for i = 1:length(graphList)
     ind = keyList{i};
