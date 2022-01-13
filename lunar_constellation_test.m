@@ -7,6 +7,9 @@
 % 
 % Author: David Dezell Turner
 
+
+% For setting colors: https://docs.microsoft.com/en-us/office/vba/api/excel.xlrgbcolor
+
 clear all
 close all
 
@@ -22,8 +25,8 @@ global scenario
 
 start = '24 Feb 2022 12:00:00.000';
 stop = '25 Feb 2022 12:00:00.000';
-satName = "GPSWalkerApprox";
-timeStep = 1800; %43200; % [s]
+satName = "LunaNet";
+timeStep = 60; %43200; % [s]
 
 scenario = root.Children.New('eScenario','Lunar_Constellation_MATLAB_test');
 scenario.SetTimePeriod(start,stop);
@@ -58,11 +61,12 @@ WalkerType = 'Delta';
 MMS = ["40482","40483","40484","40485"]; % Magnetospheric Multiscale
 ATrain = ["27424","28376","38337","40059"]; % Earth Observing System (EOS) A-Train
 CTrain = ["29108","29107"];
-GPS = ["39533","39741","40105","40294","40534","40730","41019","41328","43873","44506","45854","46826","48859","24876","27704","28129","32711","35752","26360","29486","28874","32260","27663","32384","29601","28190","28474","36585","37753","38833","39166"]
+GPS = ["39533","39741","40105","40294","40534","40730","41019","41328","43873","44506","45854","46826","48859","24876","27704","28129","32711","35752","26360","29486","28874","32260","27663","32384","29601","28190","28474","36585","37753","38833","39166"];
 
-% satFromDB(GPS)
-createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
-% createWalker(satName,numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode+30,WalkerType)
+createLunaNet()
+% satFromDB(MMS)
+% createWalker(numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
+% createWalker(numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode+30,WalkerType)
 
 %% Create Ground Stations
 % One ground station for each DSN complex. Each is an approximation
@@ -191,7 +195,7 @@ function satFromDB(SSCNumList)
     end
 end
 
-function createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
+function createWalker(numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
 % CREATEWALKER Define a Walker constellation in STK and add the satellites
 % to satContainer.
 % 
@@ -256,4 +260,123 @@ function createWalker(satName,numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,
 %             root.ExecuteCommand(sprintf(ephemText,satCurrentName,ephemFile,satCentralBody));
         end
     end
+end
+
+function createLunaNet()
+    global satCentralBody;
+    global satContainer;
+    global root;
+    global scenario;
+
+    satCentralBody = 'Moon';
+    semimajor = 6142.4; % [km]
+
+    % 12-Hr Circular Equatorial Sat
+    disp("Creating 12-Hr Circular Equatorial Sat...")
+    satellite = scenario.Children.NewOnCentralBody('eSatellite','1',satCentralBody);
+    keplerian = satellite.Propagator.InitialState.Representation.ConvertTo('eOrbitStateClassical'); % Use the Classical Element interface
+    keplerian.SizeShapeType = 'eSizeShapeSemimajorAxis';
+    keplerian.LocationType = 'eLocationMeanAnomaly';
+    keplerian.Orientation.AscNodeType = 'eAscNodeRAAN';
+    keplerian.SizeShape.SemimajorAxis = semimajor;
+    keplerian.SizeShape.Eccentricity = 0;
+    keplerian.Orientation.Inclination = 0;
+    keplerian.Orientation.AscNode.Value = 0;
+    keplerian.Orientation.ArgOfPerigee = 315;
+    keplerian.Location.Value = 0;
+    graphics = satellite.Graphics;
+    graphics.SetAttributesType('eAttributesBasic');
+    attributes = graphics.Attributes;
+    attributes.Color = 65535; % Yellow
+    satellite.Propagator.InitialState.Representation.Assign(keplerian);
+    satellite.Propagator.Propagate;
+    satContainer("1") = satellite;
+    
+    ecc = 0.59999;
+    inc = 57.7; % deg
+
+    % 12-Hr Elliptical North Sat 1
+    disp("Creating 12-Hr Elliptical North Sat 1...")
+    satellite = scenario.Children.NewOnCentralBody('eSatellite',"2",satCentralBody);
+    keplerian = satellite.Propagator.InitialState.Representation.ConvertTo('eOrbitStateClassical'); % Use the Classical Element interface
+    keplerian.SizeShapeType = 'eSizeShapeSemimajorAxis';
+    keplerian.LocationType = 'eLocationTrueAnomaly';
+    keplerian.Orientation.AscNodeType = 'eAscNodeRAAN';
+    keplerian.SizeShape.SemimajorAxis = semimajor;
+    keplerian.SizeShape.Eccentricity = ecc;
+    keplerian.Orientation.Inclination = inc;
+    keplerian.Orientation.AscNode.Value = 270;
+    keplerian.Orientation.ArgOfPerigee = 270;
+    keplerian.Location.Value = 0;
+    graphics = satellite.Graphics;
+    graphics.SetAttributesType('eAttributesBasic');
+    attributes = graphics.Attributes;
+    attributes.Color = 255; % Red
+    satellite.Propagator.InitialState.Representation.Assign(keplerian);
+    satellite.Propagator.Propagate;
+    satContainer("2") = satellite;
+
+    % 12-Hr Elliptical North Sat 2
+    disp("Creating 12-Hr Elliptical North Sat 2...")
+    satellite = scenario.Children.NewOnCentralBody('eSatellite',"3",satCentralBody);
+    keplerian = satellite.Propagator.InitialState.Representation.ConvertTo('eOrbitStateClassical'); % Use the Classical Element interface
+    keplerian.SizeShapeType = 'eSizeShapeSemimajorAxis';
+    keplerian.LocationType = 'eLocationTrueAnomaly';
+    keplerian.Orientation.AscNodeType = 'eAscNodeRAAN';
+    keplerian.SizeShape.SemimajorAxis = semimajor;
+    keplerian.SizeShape.Eccentricity = ecc;
+    keplerian.Orientation.Inclination = inc;
+    keplerian.Orientation.AscNode.Value = 270;
+    keplerian.Orientation.ArgOfPerigee = 270;
+    keplerian.Location.Value = 180;
+    graphics = satellite.Graphics;
+    graphics.SetAttributesType('eAttributesBasic');
+    attributes = graphics.Attributes;
+    attributes.Color = 255; % Red
+    satellite.Propagator.InitialState.Representation.Assign(keplerian);
+    satellite.Propagator.Propagate;
+    satContainer("3") = satellite;
+
+    % 12-Hr Elliptical South Sat 1
+    disp("Creating 12-Hr Elliptical South Sat 1...")
+    satellite = scenario.Children.NewOnCentralBody('eSatellite',"4",satCentralBody);
+    keplerian = satellite.Propagator.InitialState.Representation.ConvertTo('eOrbitStateClassical'); % Use the Classical Element interface
+    keplerian.SizeShapeType = 'eSizeShapeSemimajorAxis';
+    keplerian.LocationType = 'eLocationTrueAnomaly';
+    keplerian.Orientation.AscNodeType = 'eAscNodeRAAN';
+    keplerian.SizeShape.SemimajorAxis = semimajor;
+    keplerian.SizeShape.Eccentricity = ecc;
+    keplerian.Orientation.Inclination = inc;
+    keplerian.Orientation.AscNode.Value = 0;
+    keplerian.Orientation.ArgOfPerigee = 90;
+    keplerian.Location.Value = 0;
+    graphics = satellite.Graphics;
+    graphics.SetAttributesType('eAttributesBasic');
+    attributes = graphics.Attributes;
+    attributes.Color = 16711680; % Blue
+    satellite.Propagator.InitialState.Representation.Assign(keplerian);
+    satellite.Propagator.Propagate;
+    satContainer("4") = satellite;
+
+    % 12-Hr Elliptical South Sat 2
+    disp("Creating 12-Hr Elliptical South Sat 2...")
+    satellite = scenario.Children.NewOnCentralBody('eSatellite',"5",satCentralBody);
+    keplerian = satellite.Propagator.InitialState.Representation.ConvertTo('eOrbitStateClassical'); % Use the Classical Element interface
+    keplerian.SizeShapeType = 'eSizeShapeSemimajorAxis';
+    keplerian.LocationType = 'eLocationTrueAnomaly';
+    keplerian.Orientation.AscNodeType = 'eAscNodeRAAN';
+    keplerian.SizeShape.SemimajorAxis = semimajor;
+    keplerian.SizeShape.Eccentricity = ecc;
+    keplerian.Orientation.Inclination = inc;
+    keplerian.Orientation.AscNode.Value = 0;
+    keplerian.Orientation.ArgOfPerigee = 90;
+    keplerian.Location.Value = 180;
+    graphics = satellite.Graphics;
+    graphics.SetAttributesType('eAttributesBasic');
+    attributes = graphics.Attributes;
+    attributes.Color = 16711680; % Blue
+    satellite.Propagator.InitialState.Representation.Assign(keplerian);
+    satellite.Propagator.Propagate;
+    satContainer("5") = satellite;
+
 end

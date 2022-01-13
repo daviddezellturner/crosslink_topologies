@@ -5,21 +5,29 @@
 % 
 % Author: David Dezell Turner
 
+%% Load variables
+
 clear all
 close all
 
 load("ATrainCTrainGraphList");
-graphList = ATrainCTrainGraphList;
-keyList = keys(graphList);
+load("GPSWalkerApproxGraphList");
+load("MMSGraphList")
+load("LunaNetGraphList")
 
-% graphList = dataToGraph("GPSWalkerApproxAccessData.xlsx")
+graphList = LunaNetGraphList;
+keyList = keys(graphList);
+% filename = "LunaNetAnimated.gif";
+
+accessFile = "LunaNetAccessData.xlsx";
+filename = strcat(erase(accessFile,"AccessData.xlsx"),'Animated.gif');
+% graphList = dataToGraph(accessFile)
 % keyList = keys(graphList);
 
-% Plots graphs and converts to GIF
-delay = 0.1
+%% Plot graphs and convert to GIF
+delay = 0.1;
 h = figure;
 axis tight manual
-filename = 'ATrainCTrainAnimated.gif';
 
 for i = 1:length(graphList)
     ind = keyList{i};
@@ -40,3 +48,20 @@ for i = 1:length(graphList)
     end 
 
 end
+
+%% Find min. distance (Optional, purely illustrative)
+% minDist = Inf;
+% minInd = 0;
+% minMat = graphList(keyList{1});
+% 
+% for i = 1:length(graphList)
+%     ind = keyList{i};
+%     currentMat = graphList(ind);
+%     if minDist > min(currentMat(currentMat>0))
+%         minDist = min(currentMat(currentMat>0));
+%         minMat = currentMat;
+%     end
+% end
+% disp(minDist)
+% disp(minInd)
+% disp(minMat)
