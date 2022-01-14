@@ -1,0 +1,1 @@
+mpt_opt.m tries out all nodes in a graph as the 'root node' from which to form a message propagation (shortest path) tree, and finds the best 'root' node that minimizes the total time to propagate message from leaves up to the root and back down. 
