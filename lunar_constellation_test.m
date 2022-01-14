@@ -25,21 +25,23 @@ global scenario
 
 start = '24 Feb 2022 12:00:00.000';
 stop = '25 Feb 2022 12:00:00.000';
-satName = "LunaNet";
+global satName
+satName = "XlinkRandomTest";
 timeStep = 60; %43200; % [s]
 
-scenario = root.Children.New('eScenario','Lunar_Constellation_MATLAB_test');
+scenario = root.Children.New('eScenario',satName);
 scenario.SetTimePeriod(start,stop);
 scenario.StartTime = start;
 scenario.StopTime = stop;
 
-root.UnitPreferences.Item('DateFormat').SetCurrentUnit('EpSec');
+% root.UnitPreferences.Item('DateFormat').SetCurrentUnit('EpSec');
 
 root.ExecuteCommand('Animate * Reset');
 % How do I set the window to a Non-Earth-fixed view?
 
 global satContainer
 satContainer = containers.Map('KeyType','char','ValueType','any');
+global groundContainer
 
 %% Define Constellation Parameters
 
@@ -69,115 +71,76 @@ createLunaNet()
 % createWalker(numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode+30,WalkerType)
 
 %% Create Ground Stations
-% One ground station for each DSN complex. Each is an approximation
-% based on p. 15 of https://deepspace.jpl.nasa.gov/dsndocs/810-005/301/301K.pdf
 
-% disp("Creating ground stations...")
-% 
-% dsn_gold = scenario.Children.NewOnCentralBody('eFacility','DSN_Goldstone','Earth');
-% dsn_gold.Position.AssignGeodetic(35,243,1000); % lat, lon, alt [m]
-% % dsn_gold.Graphics.Color = 3145645; % Yellow-Green
-% 
-% dsn_mad = scenario.Children.NewOnCentralBody('eFacility','DSN_Madrid','Earth');
-% dsn_mad.Position.AssignGeodetic(40,355,800); % lat, lon, alt [m]
-% % dsn_mad.Graphics.Color = 3145645; % Yellow-Green
-% 
-% dsn_can = scenario.Children.NewOnCentralBody('eFacility','DSN_Canberra','Earth');
-% dsn_can.Position.AssignGeodetic(-35,148,700); % lat, lon, alt [m]
-% % dsn_can.Graphics.Color = 3145645; % Yellow-Green
-% 
-% groundNameList = ["DSN_Goldstone","DSN_Madrid","DSN_Canberra"];
-% groundStations = {dsn_gold,dsn_mad,dsn_can};
-% groundContainer = containers.Map(groundNameList,groundStations);
+createDSN()
 
 %% Access Analysis
 
-% accessContainer = containers.Map('KeyType','char','ValueType','any');
-filename = strcat(satName,'AccessData.xlsx');
-sheet = 1;
+% accessAllSats()
 
-% Between satellites
-allSats = keys(satContainer);
-masterTimes = []; % Array of all timesteps for which there is access data
-for a = 1:length(allSats)
-    for b = a+1:length(allSats)
-        try
-            sat1 = satContainer(allSats{a});
-            sat2 = satContainer(allSats{b});
-    
-            access = sat1.GetAccessToObject(sat2);
-            access.ComputeAccess;
-            
-            accessName = strcat(allSats{a},"-to-",allSats{b});
-            
-            accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
-            accessStartTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Start Time').GetValues);
-            accessStopTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Stop Time').GetValues);
-            disp(strcat("Computing ",accessName,"..."))
-    
-            accessAER = access.DataProviders.Item('AER Data').Group.Item('BodyFixed').Exec(scenario.StartTime, scenario.StopTime, timeStep);
-            AERTimes = cell2mat(accessAER.Interval.Item(cast(0, 'int32')).DataSets.GetDataSetByName('Time').GetValues);
-            range = cell2mat(accessAER.Interval.Item(cast(0, 'int32')).DataSets.GetDataSetByName('Range').GetValues);
-            for i = 1:1:accessAER.Interval.Count-1
-                AERTimes = [AERTimes; cell2mat(accessAER.Interval.Item(cast(i, 'int32')).DataSets.GetDataSetByName('Time').GetValues)];
-                range = [range; cell2mat(accessAER.Interval.Item(cast(i, 'int32')).DataSets.GetDataSetByName('Range').GetValues)];
+%% Crosslink Visualization
+load("ATrainCTrainGraphList");
+load("GPSWalkerApproxGraphList");
+load("MMSGraphList")
+load("LunaNetGraphList")
+load("LunaNetWithLLOGraphList")
+
+graphList = LunaNetWithLLOGraphList;
+keyList = keys(graphList);
+filename = "LunaNetWithLLO_SecondAttempt_Animated.gif";
+
+for i = 1:length(graphList)-1
+    time = keyList{i};
+    nextTime = keyList{i+1};
+
+    currentGraph = graph(graphList(time));
+    tree = shortestpathtree(currentGraph,1,'OutputForm','cell');
+
+    for pathInd = 1:length(tree)
+        chainName = strcat('Chain',num2str(i),num2str(pathInd));
+        if length(tree{pathInd}) > 1
+            chain = root.CurrentScenario.Children.NewOnCentralBody('eChain',chainName,satCentralBody);
+            for s = 1:length(tree{pathInd})
+                satNum = tree{pathInd}(s);
+                satellite = satContainer(num2str(satNum));
+                chain.Objects.AddObject(satellite);
             end
-            AERTimes = timeStep*round(AERTimes./timeStep); % round time steps so they're all the same
+            % Configure chain parameters
+            chain.AutoRecompute = false;
+            chain.EnableLightTimeDelay = false;
+            chain.TimeConvergence = 0.001;
+            chain.DataSaveMode = 'eSaveAccesses';
+            
+%             % Specify our own time period
+%             chain.SetTimePeriodType('eUserSpecifiedTimePeriod');
+            startDate = datetime(start,'InputFormat','dd MMM yyyy HH:mm:ss.SSS');
+            timestr = datestr(startDate + seconds(time),'dd mmm yyyy HH:MM:SS.FFF');
+            nextTimestr = datestr(startDate + seconds(nextTime),'dd mmm yyyy HH:MM:SS.FFF');
+            root.ExecuteCommand(sprintf('Chains */Chain/%s SetComputeTime UserSpecified "%s" "%s"',chainName,timestr,nextTimestr));
+            
+            graphics = chain.Graphics;
+            graphics.Animation.Color = 255;
+%             graphics.Static.Color = 255; % Red
+%             graphics.SetAttributesType('eAttributesBasic');
+%             attributes = graphics.Attributes;
+%             attributes.Color = 255; % Red
 
-            masterTimes = unique([masterTimes;AERTimes]);
-    
-    %             warning('off','MATLAB:xlswrite:AddSheet');
-    %             xlswrite(filename,{access_name},sheet,'A1');
-            headers = ["Time since start [s]","Distance between objects [km]"];
-    %             xlswrite(filename,headers,sheet,'A2');
-    %             xlswrite(filename,AERTimes,sheet,'A3');
-    %             xlswrite(filename,range,sheet,'B3');
-            writematrix(headers,filename,'Sheet',accessName,'Range','A1:B1');
-            writematrix(AERTimes,filename,'Sheet',accessName,'Range','A2');
-            writematrix(range,filename,'Sheet',accessName,'Range','B2');
-%             sheet = sheet + 1;
-        catch
-            warning(strcat("No line of sight between ",allSats{a}," & ",allSats{b}));
+            chain.ComputeAccess();
+            disp(strcat(chainName," complete."))
         end
     end
 end
-writematrix(["Master Timestep List [s]"],filename,'Sheet','Master')
-writematrix(masterTimes,filename,'Sheet','Master','Range','A2');
-writematrix(["Master Satellite List"],filename,'Sheet','Master','Range','B1')
-masterSatList = reshape(allSats,[length(allSats),1]);
-writecell(masterSatList,filename,'Sheet','Master','Range','B2');
-
-% % Between sats and ground stations
-% for a = 1:length(allSats)
-%     for b = 1:length(groundNameList)
-%         try
-%             sat1 = satContainer(allSats{a});
-%             gs = groundContainer(groundNameList(b));
-% 
-%             access = sat1.GetAccessToObject(gs);
-%             access.ComputeAccess;
-%             accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
-%             accessStartTimes = accessDP.DataSets.GetDataSetByName('Start Time').GetValues;
-%             accessStopTimes = accessDP.DataSets.GetDataSetByName('Stop Time').GetValues;
-% 
-%             access_name = strcat(allSats{a},"to",groundNameList(b));
-%             disp(strcat("Computing ",access_name,"..."))
-% 
-%             xlswrite(filename,{access_name},sheet,'A1');
-%             headers = {"Start Time","Stop Time"};
-%             xlswrite(filename,headers,sheet,'A2');
-%             xlswrite(filename,accperi_altessStartTimes,sheet,'A3');
-%             xlswrite(filename,accessStartTimes,sheet,'B3');
-%             sheet = sheet + 1;
-%         catch
-%             warning(strcat("No line of sight between ",allSats{a}," & ",groundNameList(b)));
-%         end
-%     end
-% end
-
 %% Functions
 
 function satFromDB(SSCNumList)
+% SATFROMDB Create satellites in STK using AGI's database of satellite
+% orbits. Input an array of strings; each string is the SSC Number of
+% a satellite that should be created.
+% 
+% Example - MMS Satellites:
+% MMS = ["40482","40483","40484","40485"];
+% SATFROMDB(MMS):
+
     global satCentralBody;
     global satContainer;
     global root;
@@ -262,7 +225,12 @@ function createWalker(numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,
     end
 end
 
+
 function createLunaNet()
+% CREATELUNANET Create a constellation based on the example orbits for
+% NASA's LunaNet concept, along with a relay orbiter in low lunar orbit
+% (LLO) inspired by the Lunar Reconnaissance Orbiter (LRO).
+
     global satCentralBody;
     global satContainer;
     global root;
@@ -311,7 +279,7 @@ function createLunaNet()
     graphics = satellite.Graphics;
     graphics.SetAttributesType('eAttributesBasic');
     attributes = graphics.Attributes;
-    attributes.Color = 255; % Red
+    attributes.Color = 8721863; % Medium Violet Red
     satellite.Propagator.InitialState.Representation.Assign(keplerian);
     satellite.Propagator.Propagate;
     satContainer("2") = satellite;
@@ -332,7 +300,7 @@ function createLunaNet()
     graphics = satellite.Graphics;
     graphics.SetAttributesType('eAttributesBasic');
     attributes = graphics.Attributes;
-    attributes.Color = 255; % Red
+    attributes.Color = 8721863; % Medium Violet Red
     satellite.Propagator.InitialState.Representation.Assign(keplerian);
     satellite.Propagator.Propagate;
     satContainer("3") = satellite;
@@ -379,4 +347,141 @@ function createLunaNet()
     satellite.Propagator.Propagate;
     satContainer("5") = satellite;
 
+    % LRO-Inspired LLO Orbiter
+    disp("Creating LLO Orbiter...")
+    satellite = scenario.Children.NewOnCentralBody('eSatellite',"6",satCentralBody);
+    keplerian = satellite.Propagator.InitialState.Representation.ConvertTo('eOrbitStateClassical'); % Use the Classical Element interface
+    keplerian.SizeShapeType = 'eSizeShapePeriod';
+    keplerian.LocationType = 'eLocationTrueAnomaly';
+    keplerian.Orientation.AscNodeType = 'eAscNodeRAAN';
+    keplerian.SizeShape.Period = 2*60*60 % [s];
+    keplerian.SizeShape.Eccentricity = 0.0059;
+    keplerian.Orientation.Inclination = 90;
+    keplerian.Orientation.AscNode.Value = 0;
+    keplerian.Orientation.ArgOfPerigee = 0;
+    keplerian.Location.Value = 0;
+    graphics = satellite.Graphics;
+    graphics.SetAttributesType('eAttributesBasic');
+    attributes = graphics.Attributes;
+    attributes.Color = 9498256; % Light Green
+    satellite.Propagator.InitialState.Representation.Assign(keplerian);
+    satellite.Propagator.Propagate;
+    satContainer("6") = satellite;
+
+end
+
+function createDSN()
+% CREATEDSN Create one ground station for each DSN complex. Each is an 
+% approximation based on the specifications on p. 15 of 
+% https://deepspace.jpl.nasa.gov/dsndocs/810-005/301/301K.pdf
+
+    global root;
+    global scenario;
+    global groundContainer;
+    
+    disp("Creating ground stations...")
+    
+    dsn_gold = scenario.Children.NewOnCentralBody('eFacility','DSN_Goldstone','Earth');
+    dsn_gold.Position.AssignGeodetic(35,243,1000); % lat, lon, alt [m]
+    % dsn_gold.Graphics.Color = 3145645; % Yellow-Green
+    
+    dsn_mad = scenario.Children.NewOnCentralBody('eFacility','DSN_Madrid','Earth');
+    dsn_mad.Position.AssignGeodetic(40,355,800); % lat, lon, alt [m]
+    % dsn_mad.Graphics.Color = 3145645; % Yellow-Green
+    
+    dsn_can = scenario.Children.NewOnCentralBody('eFacility','DSN_Canberra','Earth');
+    dsn_can.Position.AssignGeodetic(-35,148,700); % lat, lon, alt [m]
+    % dsn_can.Graphics.Color = 3145645; % Yellow-Green
+    
+    groundNameList = ["DSN_Goldstone","DSN_Madrid","DSN_Canberra"];
+    groundStations = {dsn_gold,dsn_mad,dsn_can};
+    groundContainer = containers.Map(groundNameList,groundStations);
+end
+
+function accessAllSats()
+% ACCESSALLSATS Generate access data for all satellites in the scenario,
+% and creates a .xlsx file with distances between each pair of sats at each
+% timestep. Distances are only input for sats that have a direct line of 
+% sight between them.
+
+    global satCentralBody;
+    global satContainer;
+    global root;
+    global scenario;
+    global satName;
+    
+    filename = strcat(satName,'AccessData.xlsx');
+    sheet = 1;
+    
+    % Between satellites
+    allSats = keys(satContainer);
+    masterTimes = []; % Array of all timesteps for which there is access data
+    for a = 1:length(allSats)
+        for b = a+1:length(allSats)
+            try
+                sat1 = satContainer(allSats{a});
+                sat2 = satContainer(allSats{b});
+        
+                access = sat1.GetAccessToObject(sat2);
+                access.ComputeAccess;
+                
+                accessName = strcat(allSats{a},"-to-",allSats{b});
+                
+                accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
+                accessStartTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Start Time').GetValues);
+                accessStopTimes = cell2mat(accessDP.DataSets.GetDataSetByName('Stop Time').GetValues);
+                disp(strcat("Computing ",accessName,"..."))
+        
+                accessAER = access.DataProviders.Item('AER Data').Group.Item('BodyFixed').Exec(scenario.StartTime, scenario.StopTime, timeStep);
+                AERTimes = cell2mat(accessAER.Interval.Item(cast(0, 'int32')).DataSets.GetDataSetByName('Time').GetValues);
+                range = cell2mat(accessAER.Interval.Item(cast(0, 'int32')).DataSets.GetDataSetByName('Range').GetValues);
+                for i = 1:1:accessAER.Interval.Count-1
+                    AERTimes = [AERTimes; cell2mat(accessAER.Interval.Item(cast(i, 'int32')).DataSets.GetDataSetByName('Time').GetValues)];
+                    range = [range; cell2mat(accessAER.Interval.Item(cast(i, 'int32')).DataSets.GetDataSetByName('Range').GetValues)];
+                end
+                AERTimes = timeStep*round(AERTimes./timeStep); % round time steps so they're all the same
+                masterTimes = unique([masterTimes;AERTimes]);
+
+                headers = ["Time since start [s]","Distance between objects [km]"];
+                writematrix(headers,filename,'Sheet',accessName,'Range','A1:B1');
+                writematrix(AERTimes,filename,'Sheet',accessName,'Range','A2');
+                writematrix(range,filename,'Sheet',accessName,'Range','B2');
+            catch
+                warning(strcat("No line of sight between ",allSats{a}," & ",allSats{b}));
+            end
+        end
+    end
+    writematrix(["Master Timestep List [s]"],filename,'Sheet','Master')
+    writematrix(masterTimes,filename,'Sheet','Master','Range','A2');
+    writematrix(["Master Satellite List"],filename,'Sheet','Master','Range','B1')
+    masterSatList = reshape(allSats,[length(allSats),1]);
+    writecell(masterSatList,filename,'Sheet','Master','Range','B2');
+    
+    % % Between sats and ground stations
+    % for a = 1:length(allSats)
+    %     for b = 1:length(groundNameList)
+    %         try
+    %             sat1 = satContainer(allSats{a});
+    %             gs = groundContainer(groundNameList(b));
+    % 
+    %             access = sat1.GetAccessToObject(gs);
+    %             access.ComputeAccess;
+    %             accessDP = access.DataProviders.Item('Access Data').Exec(scenario.StartTime,scenario.StopTime);
+    %             accessStartTimes = accessDP.DataSets.GetDataSetByName('Start Time').GetValues;
+    %             accessStopTimes = accessDP.DataSets.GetDataSetByName('Stop Time').GetValues;
+    % 
+    %             access_name = strcat(allSats{a},"to",groundNameList(b));
+    %             disp(strcat("Computing ",access_name,"..."))
+    % 
+    %             xlswrite(filename,{access_name},sheet,'A1');
+    %             headers = {"Start Time","Stop Time"};
+    %             xlswrite(filename,headers,sheet,'A2');
+    %             xlswrite(filename,accperi_altessStartTimes,sheet,'A3');
+    %             xlswrite(filename,accessStartTimes,sheet,'B3');
+    %             sheet = sheet + 1;
+    %         catch
+    %             warning(strcat("No line of sight between ",allSats{a}," & ",groundNameList(b)));
+    %         end
+    %     end
+    % end
 end

@@ -14,15 +14,23 @@ load("ATrainCTrainGraphList");
 load("GPSWalkerApproxGraphList");
 load("MMSGraphList")
 load("LunaNetGraphList")
+load("LunaNetWithLLOGraphList")
 
-graphList = LunaNetGraphList;
+graphList = LunaNetWithLLOGraphList;
 keyList = keys(graphList);
-% filename = "LunaNetAnimated.gif";
+filename = "LunaNetWithLLO_SecondAttempt_Animated.gif";
 
-accessFile = "LunaNetAccessData.xlsx";
-filename = strcat(erase(accessFile,"AccessData.xlsx"),'Animated.gif');
+% accessFile = "LunaNetWithLLOAccessData.xlsx";
+% filename = strcat(erase(accessFile,"AccessData.xlsx"),'Animated.gif');
 % graphList = dataToGraph(accessFile)
 % keyList = keys(graphList);
+
+%% Shortest path tree test
+currentGraph = graph(graphList(keyList{9}));
+TR = shortestpathtree(currentGraph,1,'OutputForm','cell')
+tree = shortestpathtree(currentGraph,1);
+p = plot(currentGraph);
+highlight(p,tree,'EdgeColor','r');
 
 %% Plot graphs and convert to GIF
 delay = 0.1;
