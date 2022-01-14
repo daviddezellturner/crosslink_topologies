@@ -24,11 +24,16 @@ G1 = [0,0,1,1,0,0;
     1,0,1,0,1,0;
     0,1,0,1,0,1;
     0,1,1,0,1,0];
-G2 = [];
+G2 = [0,0,1,0,0,0;
+    0,0,0,0,1,0;
+    1,0,0,1,0,1;
+    0,0,1,0,1,0;
+    0,1,0,1,0,1;
+    0,0,1,0,1,0];
 frames = [G1, G2];
 
 %% TEST CYCLEFINDER
-[greedy_cycle, cost] = cyclefinder(g,3);
+%_cycle, cost] = cyclefinder(g,3);
 
 
 %% TEST PATHFINDER
@@ -39,3 +44,6 @@ frames = [G1, G2];
 
 %% TEST METRICS
 % (figures of merit)
+
+%% TEST LINKSTATE
+linkstate(g)
