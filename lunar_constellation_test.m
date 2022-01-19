@@ -18,15 +18,16 @@ disp("Opening STK...")
 app = actxserver('STK12.application');
 app.UserControl = 1;
 
-global root
+global root;
 root = app.Personality2;
 
-global scenario
+global scenario;
+global satName;
+global timeStep;
 
 start = '24 Feb 2022 12:00:00.000';
 stop = '25 Feb 2022 12:00:00.000';
-global satName
-satName = "XlinkRandomTest";
+satName = "DisconnectAttempt";
 timeStep = 60; %43200; % [s]
 
 scenario = root.Children.New('eScenario',satName);
@@ -49,13 +50,13 @@ global groundContainer
 % createConstellation() to define a constellation around it.
 
 global satCentralBody;
-satCentralBody = 'Earth'; % central body of satellite orbits
+satCentralBody = 'Moon'; % central body of satellite orbits
 
-satsPerPlane = 4;
-numPlanes = 6;
-periAlt = 20200; % periapsis altitude [km]
-apoAlt = 20200; % apoapsis altitude [km]
-inc = 55; % [deg]
+satsPerPlane = 2;
+numPlanes = 1;
+periAlt = 2000; % periapsis altitude [km]
+apoAlt = 2000; % apoapsis altitude [km]
+inc = 45; % [deg]
 argPeri = 30.442; % argument of perigee [deg]
 ascNode = 14.28; % RAAN
 WalkerType = 'Delta';
@@ -65,10 +66,11 @@ ATrain = ["27424","28376","38337","40059"]; % Earth Observing System (EOS) A-Tra
 CTrain = ["29108","29107"];
 GPS = ["39533","39741","40105","40294","40534","40730","41019","41328","43873","44506","45854","46826","48859","24876","27704","28129","32711","35752","26360","29486","28874","32260","27663","32384","29601","28190","28474","36585","37753","38833","39166"];
 
-createLunaNet()
+
+% createLunaNet()
 % satFromDB(MMS)
-% createWalker(numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
-% createWalker(numPlanes,satsPerPlane,periAlt/2,apoAlt/2,inc,argPeri,ascNode+30,WalkerType)
+createWalker(numPlanes,satsPerPlane,periAlt,apoAlt,inc,argPeri,ascNode,WalkerType)
+createWalker(numPlanes,1,periAlt/2,apoAlt/2,inc,argPeri,ascNode+30,WalkerType)
 
 %% Create Ground Stations
 
@@ -76,60 +78,61 @@ createDSN()
 
 %% Access Analysis
 
-% accessAllSats()
+accessAllSats()
 
 %% Crosslink Visualization
-load("ATrainCTrainGraphList");
-load("GPSWalkerApproxGraphList");
-load("MMSGraphList")
-load("LunaNetGraphList")
-load("LunaNetWithLLOGraphList")
-
-graphList = LunaNetWithLLOGraphList;
-keyList = keys(graphList);
-filename = "LunaNetWithLLO_SecondAttempt_Animated.gif";
-
-for i = 1:length(graphList)-1
-    time = keyList{i};
-    nextTime = keyList{i+1};
-
-    currentGraph = graph(graphList(time));
-    tree = shortestpathtree(currentGraph,1,'OutputForm','cell');
-
-    for pathInd = 1:length(tree)
-        chainName = strcat('Chain',num2str(i),num2str(pathInd));
-        if length(tree{pathInd}) > 1
-            chain = root.CurrentScenario.Children.NewOnCentralBody('eChain',chainName,satCentralBody);
-            for s = 1:length(tree{pathInd})
-                satNum = tree{pathInd}(s);
-                satellite = satContainer(num2str(satNum));
-                chain.Objects.AddObject(satellite);
-            end
-            % Configure chain parameters
-            chain.AutoRecompute = false;
-            chain.EnableLightTimeDelay = false;
-            chain.TimeConvergence = 0.001;
-            chain.DataSaveMode = 'eSaveAccesses';
-            
-%             % Specify our own time period
-%             chain.SetTimePeriodType('eUserSpecifiedTimePeriod');
-            startDate = datetime(start,'InputFormat','dd MMM yyyy HH:mm:ss.SSS');
-            timestr = datestr(startDate + seconds(time),'dd mmm yyyy HH:MM:SS.FFF');
-            nextTimestr = datestr(startDate + seconds(nextTime),'dd mmm yyyy HH:MM:SS.FFF');
-            root.ExecuteCommand(sprintf('Chains */Chain/%s SetComputeTime UserSpecified "%s" "%s"',chainName,timestr,nextTimestr));
-            
-            graphics = chain.Graphics;
-            graphics.Animation.Color = 255;
-%             graphics.Static.Color = 255; % Red
-%             graphics.SetAttributesType('eAttributesBasic');
-%             attributes = graphics.Attributes;
-%             attributes.Color = 255; % Red
-
-            chain.ComputeAccess();
-            disp(strcat(chainName," complete."))
-        end
-    end
-end
+root.UnitPreferences.Item('DateFormat').SetCurrentUnit('UTCG');
+% load("ATrainCTrainGraphList");
+% load("GPSWalkerApproxGraphList");
+% load("MMSGraphList")
+% load("LunaNetGraphList")
+% load("LunaNetWithLLOGraphList")
+% 
+% graphList = LunaNetWithLLOGraphList;
+% keyList = keys(graphList);
+% filename = "LunaNetWithLLO_SecondAttempt_Animated.gif";
+% 
+% for i = 1:50%length(graphList)-1
+%     time = keyList{i};
+%     nextTime = keyList{i+1};
+% 
+%     currentGraph = graph(graphList(time));
+%     tree = shortestpathtree(currentGraph,1,'OutputForm','cell');
+% 
+%     for pathInd = 1:length(tree)
+%         chainName = strcat('Chain',num2str(i),num2str(pathInd));
+%         if length(tree{pathInd}) > 1
+%             chain = root.CurrentScenario.Children.NewOnCentralBody('eChain',chainName,satCentralBody);
+%             for s = 1:length(tree{pathInd})
+%                 satNum = tree{pathInd}(s);
+%                 satellite = satContainer(num2str(satNum));
+%                 chain.Objects.AddObject(satellite);
+%             end
+%             % Configure chain parameters
+%             chain.AutoRecompute = false;
+%             chain.EnableLightTimeDelay = true;
+%             chain.TimeConvergence = 0.001;
+%             chain.DataSaveMode = 'eSaveAccesses';
+%             
+% %             % Specify our own time period
+% %             chain.SetTimePeriodType('eUserSpecifiedTimePeriod');
+%             startDate = datetime(start,'InputFormat','dd MMM yyyy HH:mm:ss.SSS');
+%             timestr = datestr(startDate + seconds(time),'dd mmm yyyy HH:MM:SS.FFF');
+%             nextTimestr = datestr(startDate + seconds(nextTime),'dd mmm yyyy HH:MM:SS.FFF');
+%             root.ExecuteCommand(sprintf('Chains */Chain/%s SetComputeTime UserSpecified "%s" "%s"',chainName,timestr,nextTimestr));
+%             
+%             graphics = chain.Graphics;
+%             graphics.Animation.Color = 255;
+% %             graphics.Static.Color = 255; % Red
+% %             graphics.SetAttributesType('eAttributesBasic');
+% %             attributes = graphics.Attributes;
+% %             attributes.Color = 255; % Red
+% 
+%             chain.ComputeAccess();
+%             disp(strcat(chainName," complete."))
+%         end
+%     end
+% end
 %% Functions
 
 function satFromDB(SSCNumList)
@@ -409,10 +412,12 @@ function accessAllSats()
     global root;
     global scenario;
     global satName;
+    global timeStep;
     
     filename = strcat(satName,'AccessData.xlsx');
     sheet = 1;
-    
+    root.UnitPreferences.Item('DateFormat').SetCurrentUnit('EpSec');
+
     % Between satellites
     allSats = keys(satContainer);
     masterTimes = []; % Array of all timesteps for which there is access data
@@ -441,7 +446,7 @@ function accessAllSats()
                 end
                 AERTimes = timeStep*round(AERTimes./timeStep); % round time steps so they're all the same
                 masterTimes = unique([masterTimes;AERTimes]);
-
+    
                 headers = ["Time since start [s]","Distance between objects [km]"];
                 writematrix(headers,filename,'Sheet',accessName,'Range','A1:B1');
                 writematrix(AERTimes,filename,'Sheet',accessName,'Range','A2');
