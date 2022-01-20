@@ -16,7 +16,7 @@
 
 % (might also want to adopt idea of heuristics to the tree methodology)
 
-function [greedy_cycle, greedy_cost] = cyclefinder_backtrack_v2(graph, root)
+function [greedy_cycle, greedy_cost] = cyclefinder_backtrack(graph, root)
 
     num_nodes = size(graph,1);
     greedy_cycle=[root];
