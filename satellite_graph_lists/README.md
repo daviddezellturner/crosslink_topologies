@@ -1,0 +1,2 @@
+# Satellite Graph Lists
+These files are the outputs from dataToGraph.m. Each files has one container variable. The keys are ints representing each timestep, or **the number of seconds since the start of the scenario.** The values are **adjacency matrices**. For each adjacency matrix *A*, *A<sub>i,j</sub>* is equal to the **slant range** between satellites *i* and *j* in **km** if there is an unobstructed line of sight between them. *A<sub>i,j</sub>* = 0 otherwise.
