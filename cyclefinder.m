@@ -1,61 +1,141 @@
-% To test: how will traversing a greedy cycle (2x?) compare with a
-% bottom-up tree approach? In terms of local vs. global optimization?
-% can we trade off b/t greedy optimization and some amount of
-% "look-forward"? dynamic programming, back-tracking, implementation of
-% existing algos, ...
-
 %% INPUT: a directed graph and a "root node."
-%% OUTPUT: a greedy cycle. if no cycle exists, return path [] and a -1 cost
-% may also return no path if greediness causes failure - think abt how to fix
+%% OUTPUT: a greedy cycle (hamiltonian or near-hamiltonian). 
+%% if no cycle exists, return path [] and a -1 cost.
 
-% A and B are the indices of source and target nodes.
-function [greedy_cycle, cost] = cyclefinder(graph, root)
+% To test: how will traversing a greedy cycle compare with a
+% bottom-up tree approach? In terms of local vs. global optimization?
+
+% for now this is just a greedy bfs; could try to add in some kind of
+% heuristic function to be more like a* ("distance to target" is probably
+% not the right kind of heuristic function to use in this case, b/c we are
+% trying to create a cycle which hits all nodes -- something along the
+% lines of "value having lots of neighbors" could be better)
+
+% could also explore returning non-hamiltonian cycles (i.e. some revisiting
+% allowed) if this ends up being "better" by some metric
+
+% (might also want to adopt idea of heuristics to the tree methodology)
+
+function [greedy_cycle, greedy_cost] = cyclefinder_backtrack_heuristic(graph, root)
 
     num_nodes = size(graph,1);
-    current_node = root;
-    unvisited_set = zeros(1,num_nodes);
-    for node = 1:num_nodes
-        unvisited_set(node)=node;
-    end
-    greedy_cycle = [current_node];
+    greedy_cycle=[root];
+    greedy_cost=-1;
+    found_cycle=false;
+    just_set = -1;
 
-    unvisited_set(unvisited_set==current_node) = [];
-    
-    closest_neighbor = current_node;
-    cost = 0;
-    while length(greedy_cycle) < num_nodes
-        min_dist = -1;
-        for node = unvisited_set
-            if graph(current_node,node) ~= 0
-                if min_dist == -1
-                    min_dist = graph(current_node,node);
-                    closest_neighbor = node;
-                else
-                    if min(min_dist, graph(current_node,node)) == graph(current_node,node)
-                        min_dist = graph(current_node,node);
-                        closest_neighbor = node;
-                    end
+    visited = zeros(1,num_nodes);
+
+    function find_cycle(node)
+
+        greedy_cycle
+
+%         if length(greedy_cycle) > num_nodes
+%             just_set = greedy_cycle(length(greedy_cycle));
+%             visited(greedy_cycle(length(greedy_cycle))) = 1;
+%             greedy_cycle(length(greedy_cycle)) = [];
+%         end
+
+        % check if we've found a cycle
+        if node == root & length(greedy_cycle) >= num_nodes+1
+            missing=false;
+            for n=1:num_nodes
+                if ~ismember(n,greedy_cycle)
+                    missing=true;
+                    break
                 end
             end
+            if ~missing
+                found_cycle=true;
+                return
+            end
         end
-        if min_dist == -1
-            greedy_cycle = [];
-            cost = -1;
-            return
-        else
-            greedy_cycle = [greedy_cycle closest_neighbor];
-            unvisited_set(unvisited_set==closest_neighbor) = [];
-            cost = min_dist + cost;
-            current_node = closest_neighbor;
+
+        % if we haven't found a cycle, continue to explore
+
+        % computing ordered list of neighbors to prioritize
+        % TODO: incorporate heuristic function here!
+        % (to do this, can create a list of recomputed costs and then sort)
+        % (brainstorming heuristic. ideas: dividing cost by number of
+        % neighbors, avoiding nodes that do connect back to root, ...)
+        % could also try favoring links close in cost to those we've added
+        % already so as to avoid bottlenecks!
+
+        neighbors_min_to_max = [];
+        for i = 1:num_nodes
+            current_min_cost = -1;
+            current_min_index = -1;
+            avg = mean(graph);
+            avg = avg(1);
+            for j = 1:num_nodes
+                num_neighbors = length(graph(j,:));
+                cost_function = 0.5*graph(node,j)/avg+0.5*num_neighbors/num_nodes;
+                if ~ismember(j,neighbors_min_to_max) & graph(node,j) ~=0 ...
+                        & (current_min_cost == -1 | cost_function <= current_min_cost)
+                    current_min_cost = cost_function;
+                    current_min_index = j;
+                end
+            end
+            if current_min_cost ~= -1
+                neighbors_min_to_max = [neighbors_min_to_max current_min_index];
+            end
         end
+
+        % explore via recursion on neighbors
+        for neighbor = neighbors_min_to_max
+            if visited(neighbor) == 0
+                visited(neighbor)=1;
+                greedy_cycle = [greedy_cycle neighbor];
+                find_cycle(neighbor);
+                if found_cycle
+                    return
+                end
+                visited(neighbor)=0;
+                greedy_cycle(length(greedy_cycle)) = [];
+            end
+        end
+
+        % allowing revisits
+        if length(greedy_cycle) >= num_nodes*4/5
+            %visited(node)=0;
+            for neighbor = neighbors_min_to_max
+                if neighbor ~= just_set
+                    visited(neighbor)=0;
+                end
+            end
+            %backtrack x2
+            if length(greedy_cycle) > num_nodes
+                greedy_cycle(length(greedy_cycle)) = [];
+            end
+            for neighbor = neighbors_min_to_max
+                if visited(neighbor) == 0
+                    visited(neighbor)=1;
+                    greedy_cycle = [greedy_cycle neighbor];
+                    find_cycle(neighbor);
+                    if found_cycle
+                        return
+                    end
+                    visited(neighbor)=0;
+                    greedy_cycle(length(greedy_cycle)) = [];
+                end
+            end
+            visited=zeros(1,num_nodes);
+        end
+
     end
-    if graph(current_node, root) ~= 0
-        greedy_cycle = [greedy_cycle root];
-        cost = cost + graph(current_node, root);
+
+    % recursive cycle computation
+    find_cycle(root);
+
+    % final cost calculation
+    % this isn't accurate anymore -- see computation in testing
+    if found_cycle
+        greedy_cost=0;
+        for node = 1:length(greedy_cycle)-1
+            greedy_cost=greedy_cost+graph(greedy_cycle(node),greedy_cycle(node+1));
+        end
     else
-        greedy_cycle = [];
-        cost = -1;
-        % should change this to try again by starting w/ second-closest
-        % neighbor!!!
+        find_cycle(greedy_cycle(length(greedy_cycle)));
     end
+
 end

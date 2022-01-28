@@ -42,27 +42,53 @@ g_backtrack_test = [0,1,0,0,0;
 g_hamiltonian_path_test = [0,1,0,0,0;
     0,0,1,10,0;
     0,0,0,1,1;
-    0,0,1,0,0;
+    0,0,1,08,0;
     1,0,0,0,0];
 
 %[greedy_cycle, cost] = cyclefinder_backtrack_v2(g_hamiltonian_path_test,3)
 
 % Testing Hamiltonian path algo w/ data propogation on LunaNetWithLLO
 
-lunanetgraphs = dataToGraph("LunaNetWithLLOAccessData.xlsx", 500);
+graphs = MMSGraphList;
 propogation_times = [];
-cycles = cell(1,length(lunanetgraphs));
+cycles = cell(1,length(graphs));
+bottlenecks = [];
+costs_breakdown = cell(1,length(graphs));
+cost_calc = [];
+lengths = [];
 
-steps = 0:length(lunanetgraphs)-1;
-steps = steps*60;
+steps = 0:0;%length(graphs)-1;
+keys=graphs.keys();
+stepsize=keys{2};
+steps = steps*stepsize;
 for i=steps
-    g=lunanetgraphs(i);
-    [greedy_cycle, cost] = cyclefinder_backtrack(g,1);
-    t = cyclicPropogationTime(g);
-    if length(greedy_cycle) > 1
-        propogation_times = [propogation_times t];
+    g=distsToRates(graphs(i))
+    %[greedy_cycle, cost] = cyclefinder_backtrack_heuristic(g,1);
+    [greedy_cycle, cost] = cyclefinder_small(g);
+    greedy_costs=[];
+    for node = 1:length(greedy_cycle)-1
+        greedy_costs = [greedy_costs g(greedy_cycle(node),greedy_cycle(node+1))];
     end
-    cycles(1,i/60+1)={greedy_cycle};
+    cycles(1,i/stepsize+1)={greedy_cycle};
+    costs_breakdown(1,i/stepsize+1)={greedy_costs};
+    bottlenecks = [bottlenecks max(greedy_costs)];
+    cost_calc = [cost_calc max(greedy_costs)*length(greedy_cycle)];
+    lengths = [lengths length(greedy_cycle)];
 end
 
-t_avg = mean(propogation_times)
+avg_cost = mean(cost_calc)
+avg_length = mean(lengths)
+avg_bottleneck = mean(bottlenecks)
+
+%compute travel time as max-cost link times number of links (?)
+%explore routing around "problem links"
+
+
+% Testing small cyclefinder
+
+
+% plotting
+% coordinates
+
+% highlight function
+% videowriter
